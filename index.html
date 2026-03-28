@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Tra Cứu Hồ Sơ</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { 
+            background-color: #f0f2f5; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        /* Style cho màn hình đăng nhập */
+        .login-container {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        }
+        .login-card {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            width: 100%;
+            max-width: 400px;
+        }
+        
+        /* Style cho giao diện chính */
+        .header-banner {
+            background-color: #1e3c72;
+            color: white;
+            padding: 1.5rem 0;
+            border-radius: 0 0 15px 15px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .card-custom { 
+            border-radius: 10px; 
+            border: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+            margin-bottom: 15px; 
+            transition: transform 0.2s ease;
+        }
+        .card-custom:hover {
+            transform: translateY(-2px);
+        }
+        .avatar-img { 
+            width: 85px; 
+            height: 110px; 
+            object-fit: cover; 
+            border-radius: 8px; 
+            border: 1px solid #e0e0e0; 
+        }
+        .modal-header-custom {
+            background-color: #1e3c72;
+            color: white;
+        }
+        .modal-body { font-size: 0.95rem; line-height: 1.6; }
+        
+        /* CSS khi in */
+        @media print {
+            body * { visibility: hidden; }
+            #detailModal, #detailModal * { visibility: visible; }
+            #detailModal { position: absolute; left: 0; top: 0; width: 100%; }
+            .modal-footer, .btn-close { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen" class="login-container">
+    <div class="login-card text-center">
+        <h4 class="mb-4 fw-bold" style="color: #1e3c72;">CÔNG AN XÃ BÁT XÁT</h4>
+        <h4 class="mb-4 fw-bold" style="color: #1e3c72;">HỆ THỐNG TRA CỨU DỮ LIỆU</h4>
+        <div class="mb-3 text-start">
+            <label class="form-label text-muted small fw-bold">MẬT KHẨU TRUY CẬP</label>
+            <input type="password" id="passwordInput" class="form-control form-control-lg" placeholder="Nhập mật khẩu..." onkeypress="handleEnter(event)">
+        </div>
+        <button class="btn btn-primary btn-lg w-100 fw-bold" style="background-color: #1e3c72; border: none;" onclick="checkPassword()">ĐĂNG NHẬP</button>
+        <div id="loginError" class="text-danger mt-3 small fw-bold" style="display: none;">❌ Mật khẩu không chính xác!</div>
+    </div>
+</div>
+
+<div id="mainApp" style="display: none;">
+    <div class="header-banner text-center">
+        <h3 class="fw-bold mb-1">CSDL TỘI PHẠM CÔNG AN XÃ BÁT XÁT</h3>
+        <p class="mb-0 text-light opacity-75">Hệ thống quản lý và tra cứu thông tin nội bộ</p>
+    </div>
+
+    <div class="container pb-5">
+        <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 12px;">
+            <div class="input-group input-group-lg">
+                <span class="input-group-text bg-white border-end-0">🔍</span>
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Nhập họ tên hoặc số CCCD để tìm kiếm..." onkeyup="filterData()">
+            </div>
+        </div>
+        
+        <div id="loadingIndicator" class="text-center py-4" style="display: none;">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Đang tải...</span>
+            </div>
+            <p class="mt-2 text-muted">Đang kết nối cơ sở dữ liệu...</p>
+        </div>
+
+        <div id="objectList"></div>
+    </div>
+</div>
+
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header modal-header-custom">
+                <h5 class="modal-title text-uppercase fw-bold" id="modalTitle">Chi tiết hồ sơ</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-info text-white fw-bold" onclick="saveProfile()">💾 Lưu Thông Tin</button>
+                <button type="button" class="btn btn-success fw-bold" onclick="printProfile()">🖨️ In Hồ Sơ</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Cấu hình Supabase
+    const SUPABASE_URL = 'https://lsvinsygvcbknajjthmt.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_P40lGYmA9FR_URJXryOJ4Q_vO49f5WG';
+    
+    let allObjects = [];
+    let modalInstance = null;
+
+    // --- XỬ LÝ ĐĂNG NHẬP ---
+    function handleEnter(e) {
+        if (e.key === 'Enter') checkPassword();
+    }
+
+    function checkPassword() {
+        const pwd = document.getElementById('passwordInput').value;
+        if (pwd === 'Dancu@123') {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            loadData();
+        } else {
+            const errDiv = document.getElementById('loginError');
+            errDiv.style.display = 'block';
+            setTimeout(() => { errDiv.style.display = 'none'; }, 3000);
+        }
+    }
+
+    // --- TẢI VÀ XỬ LÝ DỮ LIỆU ---
+    async function loadData() {
+        document.getElementById('loadingIndicator').style.display = 'block';
+        document.getElementById('objectList').innerHTML = '';
+        
+        try {
+            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            const { data, error } = await supabase
+                .from('objects')
+                .select('*, supplemental_info(*), other_info(*, attachments(*))');
+
+            document.getElementById('loadingIndicator').style.display = 'none';
+
+            if (error) throw new Error(error.message);
+            if (!data || data.length === 0) {
+                document.getElementById('objectList').innerHTML = '<div class="alert alert-warning text-center">Cơ sở dữ liệu hiện đang trống.</div>';
+                return;
+            }
+
+            allObjects = data;
+            renderList(allObjects);
+        } catch (err) {
+            document.getElementById('loadingIndicator').style.display = 'none';
+            document.getElementById('objectList').innerHTML = `<div class="alert alert-danger">Lỗi kết nối: ${err.message}</div>`;
+        }
+    }
+
+    function renderList(dataArray) {
+        const listDiv = document.getElementById('objectList');
+        listDiv.innerHTML = '';
+        if(dataArray.length === 0) {
+            listDiv.innerHTML = '<div class="text-center text-muted py-4"><h5>Không tìm thấy hồ sơ nào phù hợp.</h5></div>'; 
+            return;
+        }
+
+        dataArray.forEach((obj) => {
+            const name = obj.full_name || "Chưa cập nhật tên";
+            const imgUrl = (obj.photo_path && obj.photo_path.startsWith('http')) 
+                            ? obj.photo_path 
+                            : 'https://via.placeholder.com/85x110?text=No+Photo';
+            
+            const html = `
+                <div class="card card-custom">
+                    <div class="card-body d-flex gap-3 align-items-center">
+                        <img src="${imgUrl}" class="avatar-img shadow-sm" alt="Ảnh chân dung">
+                        <div class="flex-grow-1">
+                            <h5 class="card-title fw-bold text-uppercase mb-2" style="color: #1e3c72;">${name}</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-secondary"><strong class="text-dark">CCCD:</strong> ${obj.id_number || '---'}</p>
+                                    <p class="mb-1 text-secondary"><strong class="text-dark">Sinh năm:</strong> ${obj.birth_date || '---'}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-secondary"><strong class="text-dark">Khu vực:</strong> ${obj.residence || '---'}</p>
+                                    <p class="mb-1 text-secondary"><strong class="text-dark">Diện QL:</strong> ${obj.category || '---'}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-primary px-4 fw-bold" onclick="showDetails('${obj.code}')">Chi Tiết</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            listDiv.innerHTML += html;
+        });
+    }
+
+    // --- HIỂN THỊ CHI TIẾT ---
+    window.showDetails = function(code) {
+        const obj = allObjects.find(o => o.code === code);
+        if(!obj) return;
+
+        document.getElementById('modalTitle').innerText = obj.full_name;
+        
+        let html = `
+            <div class="mb-4">
+                <h6 class="fw-bold text-uppercase pb-2" style="color: #1e3c72; border-bottom: 2px solid #1e3c72;">1. Thông Tin Cơ Bản</h6>
+                <div class="row mt-2">
+                    <div class="col-sm-6"><p><strong>Ngày sinh:</strong> ${obj.birth_date || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Giới tính:</strong> ${obj.gender || ''}</p></div>
+                    <div class="col-sm-12"><p><strong>Nơi sinh:</strong> ${obj.place_of_birth || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Nghề nghiệp:</strong> ${obj.occupation || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Nơi làm việc:</strong> ${obj.workplace || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Số ĐT:</strong> ${obj.phone || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Phân loại:</strong> ${obj.category || ''} - ${obj.dimension || ''}</p></div>
+                </div>
+            </div>
+        `;
+
+        if(obj.supplemental_info && obj.supplemental_info.length > 0) {
+            html += `
+            <div class="mb-4">
+                <h6 class="fw-bold text-uppercase pb-2" style="color: #1e3c72; border-bottom: 2px solid #1e3c72;">2. Quan Hệ Gia Đình</h6>
+                <div class="table-responsive mt-2">
+                    <table class="table table-hover table-bordered align-middle">
+                        <thead class="table-light"><tr><th>Quan hệ</th><th>Họ tên</th><th>Ngày sinh</th><th>CCCD</th></tr></thead>
+                        <tbody>`;
+            obj.supplemental_info.forEach(fam => {
+                const rel = fam.relation === 'father' ? 'Bố' : fam.relation === 'mother' ? 'Mẹ' : fam.relation === 'spouse' ? 'Vợ/Chồng' : 'Con';
+                html += `<tr><td><span class="badge bg-secondary">${rel}</span></td><td>${fam.full_name || ''}</td><td>${fam.birth_date || ''}</td><td>${fam.id_card || ''}</td></tr>`;
+            });
+            html += `</tbody></table></div></div>`;
+        }
+
+        if(obj.other_info && obj.other_info.length > 0) {
+            html += `
+            <div class="mb-3">
+                <h6 class="fw-bold text-uppercase pb-2" style="color: #1e3c72; border-bottom: 2px solid #1e3c72;">3. Quá Trình Hoạt Động & Tài Liệu</h6>
+                <div class="mt-2">`;
+            obj.other_info.forEach(act => {
+                html += `<div class="p-3 mb-3 bg-white border rounded shadow-sm print-avoid-break">
+                    <div class="d-flex justify-content-between border-bottom pb-2 mb-2">
+                        <span class="text-danger fw-bold">Ngày: ${act.event_date || '---'}</span>
+                        <span class="badge bg-warning text-dark">${act.category || ''} - ${act.dimension || ''}</span>
+                    </div>
+                    <p class="mb-2"><strong>Nội dung sự việc:</strong> ${act.description || ''}</p>`;
+                
+                if(act.attachments && act.attachments.length > 0) {
+                    html += `<div class="mt-2 p-2 bg-light rounded"><strong>📁 Tài liệu đính kèm:</strong><ul class="mb-0 mt-1">`;
+                    act.attachments.forEach(att => {
+                        if(att.file_path && att.file_path.startsWith('http')){
+                            html += `<li><a href="${att.file_path}" target="_blank" class="text-decoration-none text-primary fw-bold">Tải xuống: ${att.note || 'Tài liệu liên quan'}</a></li>`;
+                        }
+                    });
+                    html += `</ul></div>`;
+                }
+                html += `</div>`;
+            });
+            html += `</div></div>`;
+        }
+
+        document.getElementById('modalBody').innerHTML = html;
+        if(!modalInstance) {
+            modalInstance = new bootstrap.Modal(document.getElementById('detailModal'));
+        }
+        modalInstance.show();
+    };
+
+    // --- TÍNH NĂNG TÌM KIẾM ---
+    function filterData() {
+        const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
+        if (!keyword) { renderList(allObjects); return; }
+        const filtered = allObjects.filter(obj => 
+            (obj.full_name && obj.full_name.toLowerCase().includes(keyword)) ||
+            (obj.id_number && obj.id_number.toLowerCase().includes(keyword))
+        );
+        renderList(filtered);
+    }
+
+    // --- TÍNH NĂNG IN ---
+    window.printProfile = function() {
+        const printContent = document.getElementById('modalBody').innerHTML;
+        const titleName = document.getElementById('modalTitle').innerText;
+        const printWindow = window.open('', '_blank', 'height=800,width=800');
+        
+        printWindow.document.write('<!DOCTYPE html><html><head><title>Hồ Sơ - ' + titleName + '</title>');
+        printWindow.document.write('<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">');
+        printWindow.document.write(`
+            <style>
+                body { padding: 40px; font-family: "Times New Roman", Times, serif; font-size: 13pt; color: #000; }
+                .border-bottom { border-bottom: 2px solid #000 !important; }
+                .text-danger, .text-primary, .bg-secondary, .bg-warning { color: #000 !important; background: transparent !important; border: 1px solid #000; }
+                .badge { font-size: 12pt; font-weight: normal; color: #000 !important; }
+                .shadow-sm { box-shadow: none !important; }
+                .bg-light, .bg-white { background-color: #fff !important; }
+                .print-avoid-break { page-break-inside: avoid; border: 1px solid #000 !important; }
+                a { text-decoration: none; color: #000; pointer-events: none; }
+            </style>
+        `);
+        printWindow.document.write('</head><body>');
+        printWindow.document.write('<h2 class="text-center text-uppercase fw-bold mb-4">TRÍCH LỤC HỒ SƠ<br><small>' + titleName + '</small></h2>');
+        printWindow.document.write(printContent);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        
+        setTimeout(() => {
+            printWindow.focus();
+            printWindow.print();
+        }, 500);
+    };
+
+    // --- TÍNH NĂNG LƯU THÔNG TIN (TẢI FILE HTML) ---
+    window.saveProfile = function() {
+        const content = document.getElementById('modalBody').innerHTML;
+        const titleName = document.getElementById('modalTitle').innerText;
+        
+        let htmlContent = "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'>";
+        htmlContent += "<title>Hồ Sơ - " + titleName + "</title>";
+        htmlContent += "<style>";
+        htmlContent += "body { font-family: Arial, sans-serif; padding: 30px; max-width: 900px; margin: auto; color: #333; line-height: 1.6; }";
+        htmlContent += "h2 { text-align: center; color: #1e3c72; }";
+        htmlContent += "h6 { color: #1e3c72; font-size: 1.1em; border-bottom: 2px solid #1e3c72; padding-bottom: 5px; margin-top: 20px; }";
+        htmlContent += ".row { display: flex; flex-wrap: wrap; margin-bottom: 10px; }";
+        htmlContent += ".col-sm-6 { width: 50%; box-sizing: border-box; padding-right: 10px; }";
+        htmlContent += ".col-sm-12 { width: 100%; box-sizing: border-box; }";
+        htmlContent += "table { width: 100%; border-collapse: collapse; margin-top: 10px; }";
+        htmlContent += "th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }";
+        htmlContent += "th { background-color: #f2f2f2; }";
+        htmlContent += ".act-box { border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; background: #fafafa; }";
+        htmlContent += ".badge { font-weight: bold; background: #eee; padding: 3px 8px; border-radius: 3px; border: 1px solid #ccc; font-size: 0.9em; }";
+        htmlContent += "a { color: #1e3c72; text-decoration: none; }";
+        htmlContent += "</style></head><body>";
+        htmlContent += "<h2>THÔNG TIN HỒ SƠ<br><span>" + titleName + "</span></h2>";
+        htmlContent += content;
+        htmlContent += "</body></html>";
+        
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        
+        const safeName = titleName.replace(/\s+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        link.download = "Ho_So_" + safeName + ".html";
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
