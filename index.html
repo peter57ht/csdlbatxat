@@ -11,7 +11,6 @@
             background-color: #f0f2f5; 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        /* Style cho màn hình đăng nhập */
         .login-container {
             height: 100vh;
             display: flex;
@@ -27,8 +26,6 @@
             width: 100%;
             max-width: 400px;
         }
-        
-        /* Style cho giao diện chính */
         .header-banner {
             background-color: #1e3c72;
             color: white;
@@ -59,8 +56,6 @@
             color: white;
         }
         .modal-body { font-size: 0.95rem; line-height: 1.6; }
-        
-        /* CSS khi in */
         @media print {
             body * { visibility: hidden; }
             #detailModal, #detailModal * { visibility: visible; }
@@ -76,25 +71,29 @@
         <h4 class="mb-4 fw-bold" style="color: #1e3c72;">CÔNG AN XÃ BÁT XÁT</h4>
         <h4 class="mb-4 fw-bold" style="color: #1e3c72;">HỆ THỐNG TRA CỨU DỮ LIỆU</h4>
         <div class="mb-3 text-start">
-            <label class="form-label text-muted small fw-bold">MẬT KHẨU TRUY CẬP</label>
-            <input type="password" id="passwordInput" class="form-control form-control-lg" placeholder="Nhập mật khẩu..." onkeypress="handleEnter(event)">
+            <label class="form-label text-muted small fw-bold">TÀI KHOẢN (EMAIL)</label>
+            <input type="email" id="emailInput" class="form-control form-control-lg mb-3" placeholder="Nhập email truy cập...">
+            
+            <label class="form-label text-muted small fw-bold">MẬT KHẨU</label>
+            <input type="password" id="passwordInput" class="form-control form-control-lg" placeholder="Nhập mật khẩu..." onkeypress="window.handleEnter(event)">
         </div>
-        <button class="btn btn-primary btn-lg w-100 fw-bold" style="background-color: #1e3c72; border: none;" onclick="checkPassword()">ĐĂNG NHẬP</button>
-        <div id="loginError" class="text-danger mt-3 small fw-bold" style="display: none;">❌ Mật khẩu không chính xác!</div>
+        <button id="loginBtn" class="btn btn-primary btn-lg w-100 fw-bold" style="background-color: #1e3c72; border: none;" onclick="window.loginUser()">ĐĂNG NHẬP</button>
+        <div id="loginError" class="text-danger mt-3 small fw-bold" style="display: none;">❌ Sai tài khoản hoặc mật khẩu!</div>
     </div>
 </div>
 
 <div id="mainApp" style="display: none;">
-    <div class="header-banner text-center">
+    <div class="header-banner text-center position-relative">
         <h3 class="fw-bold mb-1">CSDL TỘI PHẠM CÔNG AN XÃ BÁT XÁT</h3>
         <p class="mb-0 text-light opacity-75">Hệ thống quản lý và tra cứu thông tin nội bộ</p>
+        <button class="btn btn-sm btn-danger position-absolute top-50 end-0 translate-middle-y me-3 fw-bold" onclick="window.logoutUser()">Đăng xuất</button>
     </div>
 
     <div class="container pb-5">
         <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 12px;">
             <div class="input-group input-group-lg">
                 <span class="input-group-text bg-white border-end-0">🔍</span>
-                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Nhập họ tên hoặc số CCCD để tìm kiếm..." onkeyup="filterData()">
+                <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Nhập họ tên hoặc số CCCD để tìm kiếm..." onkeyup="window.filterData()">
             </div>
         </div>
         
@@ -116,11 +115,10 @@
                 <h5 class="modal-title text-uppercase fw-bold" id="modalTitle">Chi tiết hồ sơ</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="modalBody">
-                </div>
+            <div class="modal-body" id="modalBody"></div>
             <div class="modal-footer bg-light">
-                <button type="button" class="btn btn-info text-white fw-bold" onclick="saveProfile()">💾 Lưu Thông Tin</button>
-                <button type="button" class="btn btn-success fw-bold" onclick="printProfile()">🖨️ In Hồ Sơ</button>
+                <button type="button" class="btn btn-info text-white fw-bold" onclick="window.saveProfile()">💾 Lưu Thông Tin</button>
+                <button type="button" class="btn btn-success fw-bold" onclick="window.printProfile()">🖨️ In Hồ Sơ</button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
@@ -128,39 +126,74 @@
 </div>
 
 <script>
-    // Cấu hình Supabase
+    // --- 1. KHỞI TẠO SUPABASE (Đổi tên thành supabaseClient) ---
     const SUPABASE_URL = 'https://lsvinsygvcbknajjthmt.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_P40lGYmA9FR_URJXryOJ4Q_vO49f5WG';
+    const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
     
     let allObjects = [];
     let modalInstance = null;
 
-    // --- XỬ LÝ ĐĂNG NHẬP ---
-    function handleEnter(e) {
-        if (e.key === 'Enter') checkPassword();
-    }
+    // --- 2. CÁC HÀM XỬ LÝ ĐĂNG NHẬP ---
+    window.handleEnter = function(e) {
+        if (e.key === 'Enter') window.loginUser();
+    };
 
-    function checkPassword() {
-        const pwd = document.getElementById('passwordInput').value;
-        if (pwd === 'Dancu@123') {
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'block';
-            loadData();
-        } else {
-            const errDiv = document.getElementById('loginError');
+    window.loginUser = async function() {
+        const email = document.getElementById('emailInput').value;
+        const password = document.getElementById('passwordInput').value;
+        const btn = document.getElementById('loginBtn');
+        const errDiv = document.getElementById('loginError');
+
+        if (!email || !password) return;
+
+        btn.innerText = 'ĐANG XỬ LÝ...';
+        btn.disabled = true;
+
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        btn.innerText = 'ĐĂNG NHẬP';
+        btn.disabled = false;
+
+        if (error) {
             errDiv.style.display = 'block';
             setTimeout(() => { errDiv.style.display = 'none'; }, 3000);
+        } else {
+            showMainApp();
         }
+    };
+
+    window.logoutUser = async function() {
+        await supabaseClient.auth.signOut();
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('mainApp').style.display = 'none';
+        document.getElementById('passwordInput').value = '';
+    };
+
+    function showMainApp() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'block';
+        loadData();
     }
 
-    // --- TẢI VÀ XỬ LÝ DỮ LIỆU ---
+    // --- 3. KIỂM TRA PHIÊN ĐĂNG NHẬP KHI MỞ TRANG ---
+    document.addEventListener("DOMContentLoaded", async () => {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            showMainApp();
+        }
+    });
+
+    // --- 4. TẢI VÀ HIỂN THỊ DỮ LIỆU ---
     async function loadData() {
         document.getElementById('loadingIndicator').style.display = 'block';
         document.getElementById('objectList').innerHTML = '';
         
         try {
-            const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('objects')
                 .select('*, supplemental_info(*), other_info(*, attachments(*))');
 
@@ -171,6 +204,13 @@
                 document.getElementById('objectList').innerHTML = '<div class="alert alert-warning text-center">Cơ sở dữ liệu hiện đang trống.</div>';
                 return;
             }
+
+            // Sắp xếp A-Z theo khu vực
+            data.sort((a, b) => {
+                const khuVucA = a.residence ? a.residence.trim().toLowerCase() : "";
+                const khuVucB = b.residence ? b.residence.trim().toLowerCase() : "";
+                return khuVucA.localeCompare(khuVucB, 'vi');
+            });
 
             allObjects = data;
             renderList(allObjects);
@@ -212,7 +252,7 @@
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-outline-primary px-4 fw-bold" onclick="showDetails('${obj.code}')">Chi Tiết</button>
+                            <button class="btn btn-outline-primary px-4 fw-bold" onclick="window.showDetails('${obj.code}')">Chi Tiết</button>
                         </div>
                     </div>
                 </div>
@@ -221,7 +261,7 @@
         });
     }
 
-    // --- HIỂN THỊ CHI TIẾT ---
+    // --- 5. HIỂN THỊ CHI TIẾT (CÓ QUÊ QUÁN) ---
     window.showDetails = function(code) {
         const obj = allObjects.find(o => o.code === code);
         if(!obj) return;
@@ -234,7 +274,8 @@
                 <div class="row mt-2">
                     <div class="col-sm-6"><p><strong>Ngày sinh:</strong> ${obj.birth_date || ''}</p></div>
                     <div class="col-sm-6"><p><strong>Giới tính:</strong> ${obj.gender || ''}</p></div>
-                    <div class="col-sm-12"><p><strong>Nơi sinh:</strong> ${obj.place_of_birth || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Nơi sinh:</strong> ${obj.place_of_birth || ''}</p></div>
+                    <div class="col-sm-6"><p><strong>Quê quán:</strong> ${obj.hometown || ''}</p></div>
                     <div class="col-sm-6"><p><strong>Nghề nghiệp:</strong> ${obj.occupation || ''}</p></div>
                     <div class="col-sm-6"><p><strong>Nơi làm việc:</strong> ${obj.workplace || ''}</p></div>
                     <div class="col-sm-6"><p><strong>Số ĐT:</strong> ${obj.phone || ''}</p></div>
@@ -292,8 +333,8 @@
         modalInstance.show();
     };
 
-    // --- TÍNH NĂNG TÌM KIẾM ---
-    function filterData() {
+    // --- 6. TÌM KIẾM & TIỆN ÍCH ---
+    window.filterData = function() {
         const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
         if (!keyword) { renderList(allObjects); return; }
         const filtered = allObjects.filter(obj => 
@@ -301,9 +342,8 @@
             (obj.id_number && obj.id_number.toLowerCase().includes(keyword))
         );
         renderList(filtered);
-    }
+    };
 
-    // --- TÍNH NĂNG IN ---
     window.printProfile = function() {
         const printContent = document.getElementById('modalBody').innerHTML;
         const titleName = document.getElementById('modalTitle').innerText;
@@ -335,7 +375,6 @@
         }, 500);
     };
 
-    // --- TÍNH NĂNG LƯU THÔNG TIN (TẢI FILE HTML) ---
     window.saveProfile = function() {
         const content = document.getElementById('modalBody').innerHTML;
         const titleName = document.getElementById('modalTitle').innerText;
@@ -371,7 +410,6 @@
         link.click();
         document.body.removeChild(link);
     };
-
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
