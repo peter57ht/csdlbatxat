@@ -61,6 +61,7 @@
             #detailModal, #detailModal * { visibility: visible; }
             #detailModal { position: absolute; left: 0; top: 0; width: 100%; }
             .modal-footer, .btn-close { display: none !important; }
+            .print-photo { max-width: 120px !important; }
         }
     </style>
 </head>
@@ -90,10 +91,13 @@
     </div>
 
     <div class="container pb-5">
-        <div class="card border-0 shadow-sm p-4 mb-4" style="border-radius: 12px;">
+        <div class="card border-0 shadow-sm p-4 mb-3" style="border-radius: 12px;">
             <div class="input-group input-group-lg">
                 <span class="input-group-text bg-white border-end-0">🔍</span>
                 <input type="text" id="searchInput" class="form-control border-start-0 ps-0" placeholder="Nhập họ tên hoặc số CCCD để tìm kiếm..." onkeyup="window.filterData()">
+            </div>
+            <div class="text-end mt-2">
+                <span id="totalCountDisplay" class="badge bg-info text-dark fw-bold fs-6">Đang tải dữ liệu...</span>
             </div>
         </div>
         
@@ -126,7 +130,7 @@
 </div>
 
 <script>
-    // --- 1. KHỞI TẠO SUPABASE (Đổi tên thành supabaseClient) ---
+    // --- 1. KHỞI TẠO SUPABASE ---
     const SUPABASE_URL = 'https://lsvinsygvcbknajjthmt.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_P40lGYmA9FR_URJXryOJ4Q_vO49f5WG';
     const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -202,6 +206,7 @@
             if (error) throw new Error(error.message);
             if (!data || data.length === 0) {
                 document.getElementById('objectList').innerHTML = '<div class="alert alert-warning text-center">Cơ sở dữ liệu hiện đang trống.</div>';
+                document.getElementById('totalCountDisplay').innerText = 'Tổng số hồ sơ: 0';
                 return;
             }
 
@@ -213,6 +218,9 @@
             });
 
             allObjects = data;
+            // Cập nhật text tổng số lượng
+            document.getElementById('totalCountDisplay').innerText = `Tổng hệ thống: ${allObjects.length} đối tượng`;
+            
             renderList(allObjects);
         } catch (err) {
             document.getElementById('loadingIndicator').style.display = 'none';
@@ -261,25 +269,39 @@
         });
     }
 
-    // --- 5. HIỂN THỊ CHI TIẾT (CÓ QUÊ QUÁN) ---
+    // --- 5. HIỂN THỊ CHI TIẾT (Cập nhật 2: Thêm Ảnh, CCCD, Khu vực) ---
     window.showDetails = function(code) {
         const obj = allObjects.find(o => o.code === code);
         if(!obj) return;
 
-        document.getElementById('modalTitle').innerText = obj.full_name;
+        document.getElementById('modalTitle').innerText = obj.full_name || 'Hồ sơ đối tượng';
         
+        const imgUrl = (obj.photo_path && obj.photo_path.startsWith('http')) 
+                        ? obj.photo_path 
+                        : 'https://via.placeholder.com/150x200?text=No+Photo';
+
         let html = `
             <div class="mb-4">
                 <h6 class="fw-bold text-uppercase pb-2" style="color: #1e3c72; border-bottom: 2px solid #1e3c72;">1. Thông Tin Cơ Bản</h6>
-                <div class="row mt-2">
-                    <div class="col-sm-6"><p><strong>Ngày sinh:</strong> ${obj.birth_date || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Giới tính:</strong> ${obj.gender || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Nơi sinh:</strong> ${obj.place_of_birth || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Quê quán:</strong> ${obj.hometown || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Nghề nghiệp:</strong> ${obj.occupation || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Nơi làm việc:</strong> ${obj.workplace || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Số ĐT:</strong> ${obj.phone || ''}</p></div>
-                    <div class="col-sm-6"><p><strong>Phân loại:</strong> ${obj.category || ''} - ${obj.dimension || ''}</p></div>
+                <div class="row mt-3">
+                    <div class="col-md-3 col-sm-12 text-center mb-3">
+                        <img src="${imgUrl}" alt="Ảnh đối tượng" class="img-fluid rounded border shadow-sm print-photo" style="max-height: 200px; object-fit: cover;">
+                    </div>
+                    <div class="col-md-9 col-sm-12">
+                        <div class="row">
+                            <div class="col-sm-6"><p><strong>Họ và tên:</strong> <span class="text-uppercase fw-bold">${obj.full_name || ''}</span></p></div>
+                            <div class="col-sm-6"><p><strong>Số CCCD:</strong> ${obj.id_number || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Ngày sinh:</strong> ${obj.birth_date || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Giới tính:</strong> ${obj.gender || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Nơi sinh:</strong> ${obj.place_of_birth || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Quê quán:</strong> ${obj.hometown || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Địa chỉ (Khu vực):</strong> ${obj.residence || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Nghề nghiệp:</strong> ${obj.occupation || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Nơi làm việc:</strong> ${obj.workplace || ''}</p></div>
+                            <div class="col-sm-6"><p><strong>Số điện thoại:</strong> ${obj.phone || ''}</p></div>
+                            <div class="col-sm-12"><p><strong>Phân loại:</strong> <span class="badge bg-warning text-dark">${obj.category || ''} - ${obj.dimension || ''}</span></p></div>
+                        </div>
+                    </div>
                 </div>
             </div>
         `;
@@ -336,12 +358,17 @@
     // --- 6. TÌM KIẾM & TIỆN ÍCH ---
     window.filterData = function() {
         const keyword = document.getElementById('searchInput').value.toLowerCase().trim();
-        if (!keyword) { renderList(allObjects); return; }
+        if (!keyword) { 
+            renderList(allObjects); 
+            document.getElementById('totalCountDisplay').innerText = `Tổng hệ thống: ${allObjects.length} đối tượng`;
+            return; 
+        }
         const filtered = allObjects.filter(obj => 
             (obj.full_name && obj.full_name.toLowerCase().includes(keyword)) ||
             (obj.id_number && obj.id_number.toLowerCase().includes(keyword))
         );
         renderList(filtered);
+        document.getElementById('totalCountDisplay').innerText = `Tìm thấy: ${filtered.length} / Tổng: ${allObjects.length}`;
     };
 
     window.printProfile = function() {
@@ -360,6 +387,7 @@
                 .shadow-sm { box-shadow: none !important; }
                 .bg-light, .bg-white { background-color: #fff !important; }
                 .print-avoid-break { page-break-inside: avoid; border: 1px solid #000 !important; }
+                .print-photo { max-width: 150px !important; height: auto !important; margin-bottom: 15px; }
                 a { text-decoration: none; color: #000; pointer-events: none; }
             </style>
         `);
@@ -388,6 +416,9 @@
         htmlContent += ".row { display: flex; flex-wrap: wrap; margin-bottom: 10px; }";
         htmlContent += ".col-sm-6 { width: 50%; box-sizing: border-box; padding-right: 10px; }";
         htmlContent += ".col-sm-12 { width: 100%; box-sizing: border-box; }";
+        htmlContent += ".col-md-3 { width: 25%; box-sizing: border-box; padding-right: 15px; text-align: center; }";
+        htmlContent += ".col-md-9 { width: 75%; box-sizing: border-box; }";
+        htmlContent += "img { max-width: 150px; border-radius: 5px; border: 1px solid #ccc; }";
         htmlContent += "table { width: 100%; border-collapse: collapse; margin-top: 10px; }";
         htmlContent += "th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }";
         htmlContent += "th { background-color: #f2f2f2; }";
